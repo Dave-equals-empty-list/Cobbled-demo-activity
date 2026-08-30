@@ -13,7 +13,9 @@ A minimal ASP.NET Core Web API that receives a name as JSON, stores it in SQL Se
 
 This project expects a SQL Server instance. On Apple Silicon Macs, use Azure SQL Edge (same engine, ARM-native):
 
-
+```bash
+docker run -e "ACCEPT_EULA=1" -e 'MSSQL_SA_PASSWORD=YourStrong!Passw0rd' -p 1433:1433 --name sql-edge -d mcr.microsoft.com/azure-sql-edge
+```
 
 Check it's running: `docker ps` should list `sql-edge` as `Up`.
 
@@ -21,6 +23,11 @@ If you're on Windows/Intel and already have SQL Server or LocalDB installed, upd
 
 ## 2. Run the API
 
+```bash
+cd backend/CobbleNameDemo
+dotnet restore
+dotnet run
+```
 
 **Important:** run this in its own terminal window and leave it running. If you're also running a frontend, that needs a *second*, separate terminal — running one will stop the other if you reuse the same terminal tab.
 
@@ -41,7 +48,11 @@ Response (200 OK):
 ```
 
 Test it without a frontend:
-
+```bash
+curl -X POST http://localhost:5000/api/users \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Alex"}'
+```
 (replace 5000 with whatever port your terminal printed)
 
 ## Troubleshooting
