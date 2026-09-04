@@ -68,6 +68,29 @@ app.MapPost("/api/users", async (UserRequest request, AppDbContext db) =>
     );
 });
 
+app.MapGet("/api/users", async (AppDbContext db) =>
+{
+    var users = new List<UserRecord>();
+    var connection = db.Database.GetDbConnection();
+    await connection.OpenAsync();
+
+    await using var dbCommand = connection.CreateCommand();
+
+    dbCommand.CommandText = "GetUsers";
+    dbCommand.CommandType = System.Data.CommandType.StoredProcedure;
+
+    await using var reader = await dbCommand.ExecuteReaderAsync();
+
+    while (await reader.ReadAsync())
+    {
+        users.Add(new UserRecord
+        {
+            Id = reader.GetInt32(0),
+            Name = reader.GetString(1)
+        });
+    }
+    return Results.Ok(users);
+});
 
 app.Run();
 
