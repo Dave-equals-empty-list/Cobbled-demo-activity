@@ -1,6 +1,6 @@
 # Cobbled-demo-activity — Name Round-Trip Demo
 
-A working proof-of-concept for the Cobble platform task: a React frontend sends a name to a C# Web API, which stores it in SQL Server, reads it back, and returns it — the frontend then displays it in capitals. Not tied to any specific Cobble module yet; this is the plumbing, proven end to end.
+A working proof-of-concept for the Cobble platform task: a React frontend sends a name to a C# Web API, which stores it in SQL Server, reads it back, and returns it the frontend then displays it in capitals. Not tied to any specific Cobble module yet; this is the plumbing, proven end to end.
 
 ## Project layout
 
