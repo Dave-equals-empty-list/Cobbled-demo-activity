@@ -75,16 +75,19 @@ app.MapPost("/api/users", async (UserRequest request, AppDbContext db) =>
     dbCommand.Parameters.Add(new SqlParameter("@Name", request.Name));
 
 
-    var result = await dbCommand.ExecuteScalarAsync();
+        // AddUser returns the row it just inserted, so both values in the response come from SQL Server rather than the name being echoed from the request.
+    await using var reader = await dbCommand.ExecuteReaderAsync();
 
-    var id = Convert.ToInt32(result);
+    if (!await reader.ReadAsync())
+    {
+        return Results.Problem("AddUser did not return the inserted row.");
+    }
 
     return Results.Ok(new
     {
-        id,
-        name = request.Name
-    }
-    );
+        id = reader.GetInt32(0),
+        name = reader.GetString(1)
+    });
 });
 
 app.MapGet("/api/users", async (AppDbContext db) =>
