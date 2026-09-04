@@ -1,14 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 
-// Matches backend/CobbleNameDemo/Program.cs exactly. If the backend endpoint
-// or the response shape changes, this file is the only place to update.
 const ENDPOINT = '/api/users'
 
 const STAGES = [
   { title: 'React form', detail: 'Reads the input and posts JSON' },
   { title: 'C# Web API', detail: 'POST /api/users' },
-  { title: 'EF Core', detail: 'db.Users.Add then SaveChangesAsync' },
-  { title: 'SQL Server', detail: 'Row written to Users, then read back' },
+  { title: 'Stored procedure', detail: 'EXEC AddUser @Name' },
+  { title: 'SQL Server', detail: 'Row written to Users, id returned' },
   { title: 'React display', detail: 'Shows the saved name in capitals' },
 ]
 
@@ -16,17 +14,31 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 export default function App() {
   const [name, setName] = useState('')
-  const [phase, setPhase] = useState('idle') // idle | running | done | error
+  const [phase, setPhase] = useState('idle')
   const [stage, setStage] = useState(-1)
   const [sent, setSent] = useState(null)
   const [received, setReceived] = useState(null)
   const [elapsed, setElapsed] = useState(null)
   const [error, setError] = useState(null)
-  const [history, setHistory] = useState([])
+  const [stored, setStored] = useState([])
+  const [storedError, setStoredError] = useState(null)
   const inputRef = useRef(null)
+
+  // Reads the real contents of the Users table through GET /api/users
+  async function loadStored() {
+    try {
+      const res = await fetch(ENDPOINT)
+      if (!res.ok) throw new Error(`Backend returned ${res.status}`)
+      setStored(await res.json())
+      setStoredError(null)
+    } catch {
+      setStoredError('Could not read the table — is the backend running?')
+    }
+  }
 
   useEffect(() => {
     inputRef.current?.focus()
+    loadStored()
   }, [])
 
   async function send(event) {
@@ -48,7 +60,6 @@ export default function App() {
       body: JSON.stringify(payload),
     })
 
-    // Stages 1-4 step forward on a fixed beat so the trip is readable.
     for (let i = 0; i < STAGES.length - 1; i++) {
       setStage(i)
       await sleep(260)
@@ -62,12 +73,13 @@ export default function App() {
 
       if (!res.ok) throw new Error(body.error || `Backend returned ${res.status}.`)
 
-      // The last stage only lights up once the real response is in hand.
       setStage(4)
       setReceived(body)
       setPhase('done')
       setName('')
-      setHistory((h) => [{ ...body, ms, at: new Date() }, ...h])
+
+      // Reread the table so the list below displays the database, not the browser
+      await loadStored()
     } catch (err) {
       setElapsed(Math.round(performance.now() - started))
       setStage(-1)
@@ -150,36 +162,38 @@ export default function App() {
       </main>
 
       <section className="stored">
-        <h2>Sent this session</h2>
-        {history.length === 0 ? (
-          <p className="result-empty">Nothing sent yet. Each round trip lands here.</p>
+        <h2>In the database</h2>
+        {storedError && <p className="error">{storedError}</p>}
+        {stored.length === 0 && !storedError ? (
+          <p className="result-empty">
+            The Users table is empty. Send a name to add the first row.
+          </p>
         ) : (
-          <>
-            <table>
-              <thead>
-                <tr>
-                  <th>Id</th>
-                  <th>Name</th>
-                  <th>Round trip</th>
-                  <th>Sent</th>
-                </tr>
-              </thead>
-              <tbody>
-                {history.map((r, i) => (
-                  <tr key={`${r.id}-${i}`}>
-                    <td className="num">{r.id}</td>
-                    <td>{r.name}</td>
-                    <td className="num">{r.ms} ms</td>
-                    <td className="num">{r.at.toLocaleTimeString()}</td>
+          !storedError && (
+            <>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Id</th>
+                    <th>Name</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-            <p className="footnote">
-              This list is held in the browser. The ids come from the database, but the
-              backend has no read-all endpoint yet, so refreshing clears it.
-            </p>
-          </>
+                </thead>
+                <tbody>
+                  {stored.map((r) => (
+                    <tr key={r.id}>
+                      <td className="num">{r.id}</td>
+                      <td>{r.name}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="footnote">
+                Read from SQL Server via GET /api/users, which runs the GetUsers stored
+                procedure. This survives a page refresh, because it is the table's actual
+                contents.
+              </p>
+            </>
+          )
         )}
       </section>
     </div>
