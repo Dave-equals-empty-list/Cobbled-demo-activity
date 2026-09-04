@@ -26,12 +26,30 @@ var app = builder.Build();
 
 app.UseCors();
 
-// Demo-only convenience: creates the database/table on first run if they don't exist.
-// For real Cobble work, replace this with proper EF Core migrations.
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+    // Creates the database and the Users table if they don't exist.
     db.Database.EnsureCreated();
+
+    // Stored procedures are not part of the EF Core model, so EnsureCreated()
+    // never creates them. Apply database/stored-procedures.sql here so a fresh
+    // clone works with no manual sqlcmd step. The script uses CREATE OR ALTER,
+    // so running it on every start is safe and picks up any edits.
+    var scriptPath = Path.Combine(AppContext.BaseDirectory, "Database", "stored-procedures.sql");
+    var script = await File.ReadAllTextAsync(scriptPath);
+
+    // GO is a batch separator understood by sqlcmd, not a T-SQL statement,
+    // so the script has to be split on it before it can be executed here.
+    var batches = Regex.Split(script, @"^\s*GO\s*$",
+        RegexOptions.Multiline | RegexOptions.IgnoreCase);
+
+    foreach (var batch in batches)
+    {
+        if (!string.IsNullOrWhiteSpace(batch))
+            await db.Database.ExecuteSqlRawAsync(batch);
+    }
 }
 
 // The single endpoint the React front end calls.
