@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using CobbleNameDemo.Data;
 using CobbleNameDemo.Models;
+using Microsoft.Data.SqlClient;
+
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -32,6 +34,9 @@ using (var scope = app.Services.CreateScope())
 }
 
 // The single endpoint the React front end calls.
+// Receives a name from the react frontend and stores it in SQL server. 
+// Database writes are performed through the AddUser stored procedure
+// rather than directly modifying the Users table through EF Core.
 app.MapPost("/api/users", async (UserRequest request, AppDbContext db) =>
 {
     if (string.IsNullOrWhiteSpace(request.Name))
@@ -39,17 +44,30 @@ app.MapPost("/api/users", async (UserRequest request, AppDbContext db) =>
         return Results.BadRequest(new { error = "Name is required." });
     }
 
-    // 1. Store the incoming JSON in the database.
-    var record = new UserRecord { Name = request.Name };
-    db.Users.Add(record);
-    await db.SaveChangesAsync();
+    var connection = db.Database.GetDbConnection();
 
-    // 2. Read it back from the database to confirm the round trip.
-    var saved = await db.Users.FindAsync(record.Id);
+    await connection.OpenAsync();
 
-    // 3. Return it to the React front end, which will display it in caps.
-    return Results.Ok(new { id = saved!.Id, name = saved.Name });
+    await using var dbCommand = connection.CreateCommand();
+
+    dbCommand.CommandText = "AddUser";
+    dbCommand.CommandType = System.Data.CommandType.StoredProcedure;
+
+    dbCommand.Parameters.Add(new SqlParameter("@Name", request.Name));
+
+
+    var result = await dbCommand.ExecuteScalarAsync();
+
+    var id = Convert.ToInt32(result);
+
+    return Results.Ok(new
+    {
+        id,
+        name = request.Name
+    }
+    );
 });
+
 
 app.Run();
 
